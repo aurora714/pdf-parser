@@ -1,0 +1,6 @@
+[submodule "pdf_parser/detection/ISAT"]
+	path = pdf_parser/detection/ISAT
+	url = git@github.com:yatengLG/ISAT_with_segment_anything.git
+[submodule "pdf_parser/detection/tools/ISAT"]
+	path = pdf_parser/detection/tools/ISAT
+	url = git@github.com:yatengLG/ISAT_with_segment_anything.git
