@@ -1,3 +1,0 @@
-// detection tools
-[submodule "ISAT"]
-    url = git@github.com:yatengLG/ISAT_with_segment_anything.git
