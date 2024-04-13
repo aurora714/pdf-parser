@@ -1,0 +1,3 @@
+[submodule "pdf_parser/detection/yolov5"]
+	path = pdf_parser/detection/yolov5
+	url = git@github.com:ultralytics/yolov5.git
