@@ -1,0 +1,35 @@
+import os
+import fitz  # PyMuPDF
+import glob  # 导入 glob 模块，用于文件路径的模式匹配
+
+def convert_pdf_to_png(pdf_path, output_base_folder):
+    pdf_name = os.path.splitext(os.path.basename(pdf_path))[0]
+    output_folder = os.path.join(output_base_folder, pdf_name)
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    doc = fitz.open(pdf_path)
+    for page_number in range(len(doc)):
+        page = doc.load_page(page_number)
+        # 使用更高的DPI或矩阵变换
+        zoom_factor = 2.0  # 调整为需要的放大倍数
+        mat = fitz.Matrix(zoom_factor, zoom_factor)  # 创建变换矩阵
+        pix = page.get_pixmap(matrix=mat)
+
+        output_path = f"{output_folder}/{pdf_name}_{page_number + 1}.png"
+        pix.save(output_path)
+        #print(f"Saved: {output_path}")
+
+    doc.close()
+
+def convert_all_pdfs_in_folder(folder_path, output_base_folder):
+    # 搜索文件夹中的所有 PDF 文件
+    pdf_files = glob.glob(os.path.join(folder_path, '*.pdf'))
+    for pdf_file in pdf_files:
+        print(f"Processing {pdf_file}")
+        convert_pdf_to_png(pdf_file, output_base_folder)
+
+# 使用示例
+pdf_folder_path = './支架/'  # 设置包含PDF文件的文件夹
+output_base_directory = './zhijia'
+convert_all_pdfs_in_folder(pdf_folder_path, output_base_directory)
