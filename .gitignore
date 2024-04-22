@@ -160,6 +160,7 @@ cython_debug/
 #.idea/
 
 # Costumized
-data/
-weights/
 pdf-parser.code-workspace
+data/
+pdf_parser/detection/data/*
+pdf_parser/detection/weights/*
