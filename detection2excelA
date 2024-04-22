@@ -1,0 +1,103 @@
+# -*- coding: utf-8 -*-
+import os
+import pandas as pd
+import gradio as gr
+from PIL import Image, ImageDraw
+from transformers import AutoImageProcessor, TableTransformerForObjectDetection
+import torch
+from transformers import DetrFeatureExtractor
+from paddleocr import PaddleOCR
+
+# 初始化模型
+image_processor = AutoImageProcessor.from_pretrained("./models/table-detection")
+detect_model = TableTransformerForObjectDetection.from_pretrained("./models/table-detection")
+structure_model = TableTransformerForObjectDetection.from_pretrained("./models/table-transformer-structure-recognition-v1.1-all")
+print(structure_model.config.id2label)
+
+feature_extractor = DetrFeatureExtractor()
+ocr = PaddleOCR(use_angle_cls=True, lang="ch")
+
+def paddle_ocr(image_path):
+    result = ocr.ocr(image_path, cls=True)
+    ocr_result = []
+    for idx in range(len(result)):
+        res = result[idx]
+        if res:
+            for line in res:
+                print(line)
+                ocr_result.append(line[1][0])
+    return "".join(ocr_result)
+
+def process_image(image):
+    temp_directory = "temp"
+    os.makedirs(temp_directory, exist_ok=True)
+    image_path = 'temp/input_image.png'
+    image.save(image_path)
+
+    image = Image.open(image_path).convert("RGB")
+    encoding = feature_extractor(image, return_tensors="pt")
+    with torch.no_grad():
+        outputs = structure_model(**encoding)
+
+    target_sizes = [image.size[::-1]]
+    results = feature_extractor.post_process_object_detection(outputs, threshold=0.5, target_sizes=target_sizes)[0]
+    print(results)
+    # 获取列和行
+    columns = []
+    rows = []
+    for i in range(len(results['boxes'])):
+        _id = results['labels'][i].item()
+        if _id == 1:
+            columns.append(results['boxes'][i].tolist())
+        elif _id == 2:
+            rows.append(results['boxes'][i].tolist())
+
+    sorted_columns = sorted(columns, key=lambda x: x[0])
+    sorted_rows = sorted(rows, key=lambda x: x[1])
+
+    # OCR 处理并构建 DataFrame 数据
+    data = []
+    column_headers = []
+    marked_image = image.copy()  # 创建原图的副本以绘制红线
+
+    for row_index, row in enumerate(sorted_rows):
+        row_result = []
+        for col_index, col in enumerate(sorted_columns):
+            rect = [int(col[0]), int(row[1]), int(col[2]), int(row[3])]  # 确保坐标为整数
+            crop_image = image.crop(rect)
+
+            # 绘制红色边界线
+            draw = ImageDraw.Draw(marked_image)
+            draw.rectangle(rect, outline="red", width=2)  # 绘制红色边框
+
+            # OCR 识别
+            crop_image_path =f'temp/cell_{row_index}_{col_index}.png'  # 保存每个单元格图片
+            crop_image.save(crop_image_path)
+            cell_text = paddle_ocr(crop_image_path)
+            row_result.append(cell_text)
+
+            if row_index == 0:  # 只在第一行时添加列标题
+                column_headers.append(f"Column {col_index}")
+        data.append(row_result)
+
+    # 保存标记了单元格边界的整张图片
+    marked_image.save('marked_image.png')
+
+    # 创建 DataFrame 并指定列标题为字符串
+    df = pd.DataFrame(data, columns=column_headers)
+
+    # 保存 DataFrame 到 Excel 文件
+    excel_path = 'output.xlsx'
+    df.to_excel(excel_path, index=False)
+
+    return df
+
+
+if __name__ == '__main__':
+    with gr.Blocks() as demo:
+        with gr.Column():
+            image_input = gr.Image(type="pil")
+            submit_button = gr.Button("Process Image")
+            ocr_outputs = gr.DataFrame()
+        submit_button.click(fn=process_image, inputs=image_input, outputs=ocr_outputs)
+    demo.launch(server_name="127.0.0.1", server_port=50074)
